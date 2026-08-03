@@ -9,7 +9,7 @@ def analyze_message(user_text):
     if not api_key:
         return {"type": "chat", "message": "عذراً، مفتاح الذكاء الاصطناعي مفقود."}
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     
     prompt = f"""
     أنت مساعد ذكي لبوت قرآن كريم على تليجرام، وتتحدث مع سيدة كبيرة في السن (جدة).
