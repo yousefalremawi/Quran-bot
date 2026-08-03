@@ -32,7 +32,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "أهلاً وسهلاً 🌙\n\n"
-        "اكتبيلي اسم السورة وأي آيات بتحبي تسمعيها بأي طريقة بتريحك، مثلاً:\n"
+        "اكتب اسم السورة والآيات التي تريد سماعهااً:\n"
         "- سورة البقرة من 90 لـ 95\n"
         "- بدي أول خمس آيات من الكهف\n\n"
         "وبعدها بختارلك القارئ وعدد مرات التكرار، وبجهزلك التسجيل الصوتي."
@@ -41,12 +41,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    msg = await update.message.reply_text("⏳ ثواني بس أفهم طلبك...")
+    msg = await update.message.reply_text("⏳ ثواني...")
 
     data = analyze_message(text)
     
     if not data:
-        await msg.edit_text("صار في مشكلة بالاتصال، جربي ابعتي الطلب مرة ثانية 🙏")
+        await msg.edit_text("صار في مشكلة بالاتصال، جربي مرة ثانية 🙏")
         return
 
     if data.get("type") == "quran":
@@ -73,7 +73,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append(row)
 
         await msg.edit_text(
-            f"تمام ✅ سورة {surah_name} من آية {ayah_start} لـ {ayah_end}\n\nاختاري القارئ:",
+            f"تمام ✅ سورة {surah_name} من آية {ayah_start} لـ {ayah_end}\n\nاختر القارئ:",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
     else:
@@ -87,7 +87,7 @@ async def handle_reciter_choice(update: Update, context: ContextTypes.DEFAULT_TY
     reciter_name = query.data.split("|", 1)[1]
     pending = context.user_data.get("pending")
     if not pending:
-        await query.edit_message_text("في مشكلة، ابعتي الطلب من جديد لو سمحتي 🙏")
+        await query.edit_message_text("في مشكلة، اطلب مرة اخرى 🙏")
         return
 
     pending["reciter_name"] = reciter_name
@@ -109,7 +109,7 @@ async def handle_repeat_choice(update: Update, context: ContextTypes.DEFAULT_TYP
     repeat = int(query.data.split("|", 1)[1])
     pending = context.user_data.get("pending")
     if not pending:
-        await query.edit_message_text("في مشكلة، ابعتي الطلب من جديد لو سمحتي 🙏")
+        await query.edit_message_text("في مشكلة، اطلب مرة اخرى 🙏")
         return
 
     surah_name = pending["surah_name"]
@@ -122,7 +122,7 @@ async def handle_repeat_choice(update: Update, context: ContextTypes.DEFAULT_TYP
     status_msg = await query.edit_message_text(
         f"جاري تجهيز التسجيل 🎧\n"
         f"سورة {surah_name} ({ayah_start}-{ayah_end}) - {reciter_name} - مكرر {repeat} مرات\n\n"
-        f"هذا ممكن ياخد ثواني، استنّي شوي..."
+        f"هذا ممكن ياخد ثواني،..."
     )
 
     def progress(current, total):
@@ -139,7 +139,7 @@ async def handle_repeat_choice(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if out_path is None:
         await status_msg.edit_text(
-            "ما قدرت أحمل ولا آية من هالقارئ. جربي قارئ ثاني."
+            "ما قدرت أحمل ولا آية من هالقارئ. جرب قارئ ثاني."
         )
         return
 
@@ -161,7 +161,7 @@ async def handle_repeat_choice(update: Update, context: ContextTypes.DEFAULT_TYP
 
 def main():
     if not BOT_TOKEN:
-        raise SystemExit("لازم تحطي التوكن!")
+        raise SystemExit("لازم تحط التوكن!")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
