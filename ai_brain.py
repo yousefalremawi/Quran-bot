@@ -38,10 +38,15 @@ def analyze_message(user_text):
     
     headers = {'Content-Type': 'application/json'}
     payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
+    "contents": [{
+        "parts": [{"text": prompt}]
+    }],
+    "generationConfig": {
+        "temperature": 0.1,
+        "topP": 0.8,
+        "maxOutputTokens": 300
     }
+}
     
     req = urllib.request.Request(
         url, 
@@ -63,4 +68,4 @@ def analyze_message(user_text):
                 return {"type": "chat", "message": ai_text}
                 
     except Exception as e:
-        return {"type": "chat", "message": "صار في مشكلة بالاتصال مع الذكاء الاصطناعي، جربي ابعتي الطلب مرة ثانية 🙏"}
+        return {"type": "chat", "message": "صار في مشكلة بالاتصال مع الذكاء الاصطناعي، اطلب مرة اخرى 🙏"}
