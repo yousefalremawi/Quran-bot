@@ -2,7 +2,7 @@
 import logging
 import os
 import json
-import google.generativeai as genai
+import aiohttp
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -28,11 +28,6 @@ REPEAT_OPTIONS = [1, 2, 3, 5, 7, 10]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# إعداد الذكاء الاصطناعي
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    ai_model = genai.GenerativeModel('gemini-pro')
-
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -44,18 +39,34 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# دالة جديدة للاتصال بالذكاء الاصطناعي مباشرة بدون تعقيدات gRPC
+async def generate_ai_response(prompt: str) -> str:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}]
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data['candidates'][0]['content']['parts'][0]['text']
+            else:
+                logger.error(f"AI Error Status: {response.status}")
+                return ""
+
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     chat_id = update.message.chat_id
 
-    # رسالة مؤقتة لتشعر المستخدم أن البوت يتجاوب
     msg = await update.message.reply_text("⏳ ثواني بس أفهم طلبك...")
 
     if not GEMINI_API_KEY:
-        await msg.edit_text("عذراً، مفتاح الذكاء الاصطناعي (GEMINI_API_KEY) مفقود في الإعدادات.")
+        await msg.edit_text("عذراً، مفتاح الذكاء الاصطناعي مفقود.")
         return
 
-    # توجيهات الذكاء الاصطناعي ليفهم الطلب ويرد بلطف
     prompt = f"""
     أنت مساعد ذكي لبوت قرآن كريم على تليجرام، وتتحدث مع سيدة كبيرة في السن (جدة).
     رسالة المستخدمة: "{text}"
@@ -72,22 +83,24 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     
     try:
-        ai_response = ai_model.generate_content(prompt).text
+        # استدعاء الدالة المباشرة
+        ai_text = await generate_ai_response(prompt)
         
-        # تنظيف النص لمحاولة قراءته كبيانات برمجية JSON
-        clean_text = ai_response.strip().strip('`').replace('json\n', '')
+        if not ai_text:
+            await msg.edit_text("صار في مشكلة بالاتصال مع الذكاء الاصطناعي، جربي مرة ثانية 🙏")
+            return
+            
+        clean_text = ai_text.strip().strip('`').replace('json\n', '')
         
         try:
             data = json.loads(clean_text)
             
-            # إذا فهم الذكاء الاصطناعي أنه طلب قرآن
             if data.get("type") == "quran":
                 surah_name = data.get("surah_name")
                 surah_num = int(data.get("surah_num"))
                 ayah_start = int(data.get("start"))
                 ayah_end = int(data.get("end"))
                 
-                # تخزين الطلب
                 context.user_data["pending"] = {
                     "surah_name": surah_name,
                     "surah_num": surah_num,
@@ -95,7 +108,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "ayah_end": ayah_end,
                 }
 
-                # تجهيز أزرار القراء
                 keyboard = []
                 row = []
                 for i, reciter_name in enumerate(RECITERS.keys(), start=1):
@@ -111,14 +123,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=InlineKeyboardMarkup(keyboard),
                 )
             else:
-                await msg.edit_text(ai_response)
+                await msg.edit_text(ai_text)
                 
         except json.JSONDecodeError:
-            # إذا لم يكن النص JSON، فهذا يعني أنها دردشة طبيعية فنعرض الرد اللطيف
-            await msg.edit_text(ai_response)
+            await msg.edit_text(ai_text)
             
     except Exception as e:
-        logger.exception("AI Error")
+        logger.exception("AI Connection Error")
         await msg.edit_text("صار في مشكلة بالاتصال، جربي ابعتي الطلب مرة ثانية 🙏")
 
 
