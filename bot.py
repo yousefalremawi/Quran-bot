@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# إسكات رسائل الاتصال المزعجة في الـ Logs
+# إخفاء رسائل الاتصال المزعجة
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.WARNING)
 
@@ -32,11 +32,11 @@ REPEAT_OPTIONS = [1, 2, 3, 5, 7, 10]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# تهيئة الذكاء الاصطناعي بالموديل الصحيح المعتمد
+# تهيئة الذكاء الاصطناعي بالموديل المتوافق تماماً
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    # استخدام الموديل الأحدث والأكثر استقراراً
-    ai_model = genai.GenerativeModel('gemini-1.5-flash')
+    # استخدام الموديل القياسي المدعوم حالياً
+    ai_model = genai.GenerativeModel('gemini-2.5-flash')
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -75,7 +75,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     
     try:
-        # استخدام مكتبة جوجل الرسمية للرد
         response = ai_model.generate_content(prompt)
         ai_text = response.text
         
