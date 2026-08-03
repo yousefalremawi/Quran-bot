@@ -1,4 +1,2 @@
-python-telegram-bot==21.7
-requests==2.32.3
-pydub==0.25.1
-pyaudioop
+[phases.setup]
+nixPkgs = ["ffmpeg"]
