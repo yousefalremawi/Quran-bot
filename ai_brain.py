@@ -40,12 +40,7 @@ def analyze_message(user_text):
     payload = {
     "contents": [{
         "parts": [{"text": prompt}]
-    }],
-    "generationConfig": {
-        "temperature": 0.1,
-        "topP": 0.8,
-        "maxOutputTokens": 300
-    }
+    }]
 }
     
     req = urllib.request.Request(
