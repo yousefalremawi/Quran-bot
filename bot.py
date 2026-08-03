@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
-import json
-from google import genai
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -16,6 +14,7 @@ from telegram.ext import (
 
 from reciters import RECITERS
 from audio import build_recording
+from ai_brain import analyze_message
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -27,11 +26,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.WARNING)
 
 REPEAT_OPTIONS = [1, 2, 3, 5, 7, 10]
-
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-
-ai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -50,73 +45,43 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = await update.message.reply_text("⏳ ثواني بس أفهم طلبك...")
 
-    if not ai_client:
-        await msg.edit_text("عذراً، مفتاح الذكاء الاصطناعي مفقود.")
+    # استدعاء ملف الذكاء الاصطناعي المنفصل
+    data = analyze_message(text)
+    
+    if not data:
+        await msg.edit_text("صار في مشكلة بالاتصال، جربي ابعتي الطلب مرة ثانية 🙏")
         return
 
-    prompt = f"""
-    أنت مساعد ذكي لبوت قرآن كريم على تليجرام، وتتحدث مع سيدة كبيرة في السن (جدة).
-    رسالة المستخدمة: "{text}"
-    
-    إذا كانت الرسالة دردشة عادية، دعاء، أو شكر، ردي عليها باحترام ولطف شديد ودعاء جميل بلهجة عامية بسيطة ومحببة، واشرحي لها أنك بوت لإرسال الآيات. (أرجعي النص الطبيعي فقط).
-    
-    أما إذا كانت الرسالة طلب لسورة أو آيات بأي صيغة كانت، فاستخرجي المعلومات وأرجعيها بصيغة JSON حصراً بهذا الشكل:
-    {{"type": "quran", "surah_name": "البقرة", "surah_num": 2, "start": 1, "end": 5}}
-    
-    ملاحظات هامة:
-    - surah_num يجب أن يكون رقم السورة الصحيح في ترتيب المصحف (من 1 إلى 114).
-    - إذا لم تحدد آية النهاية، اجعليها نفس آية البداية.
-    - لا ترجعي أي نص قبل أو بعد الـ JSON.
-    """
-    
-    try:
-        response = ai_client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt
-        )
-        ai_text = response.text
+    if data.get("type") == "quran":
+        surah_name = data.get("surah_name")
+        surah_num = int(data.get("surah_num"))
+        ayah_start = int(data.get("start"))
+        ayah_end = int(data.get("end"))
         
-        clean_text = ai_text.strip().strip('`').replace('json\n', '').replace('```', '')
-        
-        try:
-            data = json.loads(clean_text)
-            
-            if data.get("type") == "quran":
-                surah_name = data.get("surah_name")
-                surah_num = int(data.get("surah_num"))
-                ayah_start = int(data.get("start"))
-                ayah_end = int(data.get("end"))
-                
-                context.user_data["pending"] = {
-                    "surah_name": surah_name,
-                    "surah_num": surah_num,
-                    "ayah_start": ayah_start,
-                    "ayah_end": ayah_end,
-                }
+        context.user_data["pending"] = {
+            "surah_name": surah_name,
+            "surah_num": surah_num,
+            "ayah_start": ayah_start,
+            "ayah_end": ayah_end,
+        }
 
-                keyboard = []
+        keyboard = []
+        row = []
+        for i, reciter_name in enumerate(RECITERS.keys(), start=1):
+            row.append(InlineKeyboardButton(reciter_name, callback_data=f"reciter|{reciter_name}"))
+            if i % 2 == 0:
+                keyboard.append(row)
                 row = []
-                for i, reciter_name in enumerate(RECITERS.keys(), start=1):
-                    row.append(InlineKeyboardButton(reciter_name, callback_data=f"reciter|{reciter_name}"))
-                    if i % 2 == 0:
-                        keyboard.append(row)
-                        row = []
-                if row:
-                    keyboard.append(row)
+        if row:
+            keyboard.append(row)
 
-                await msg.edit_text(
-                    f"تمام ✅ سورة {surah_name} من آية {ayah_start} لـ {ayah_end}\n\nاختاري القارئ:",
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                )
-            else:
-                await msg.edit_text(ai_text)
-                
-        except json.JSONDecodeError:
-            await msg.edit_text(ai_text)
-            
-    except Exception as e:
-        logger.exception("AI SDK Error")
-        await msg.edit_text("صار في مشكلة بالاتصال مع الذكاء الاصطناعي، جربي ابعتي الطلب مرة ثانية 🙏")
+        await msg.edit_text(
+            f"تمام ✅ سورة {surah_name} من آية {ayah_start} لـ {ayah_end}\n\nاختاري القارئ:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+    else:
+        # رد الدردشة العادية أو اللطف من العقل المدبر
+        await msg.edit_text(data.get("message", "أهلاً بكِ"))
 
 
 async def handle_reciter_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -209,7 +174,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_repeat_choice, pattern=r"^repeat\|"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    logger.info("Bot starting with gemini-2.0-flash...")
+    logger.info("Bot starting cleanly with modular design...")
     app.run_polling(drop_pending_updates=True)
 
 
