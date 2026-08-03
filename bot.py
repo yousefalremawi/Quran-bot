@@ -2,7 +2,7 @@
 import logging
 import os
 import json
-import aiohttp
+import google.generativeai as genai
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -23,10 +23,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# إسكات رسائل الاتصال المزعجة في الـ Logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("telegram").setLevel(logging.WARNING)
+
 REPEAT_OPTIONS = [1, 2, 3, 5, 7, 10]
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+
+# تهيئة الذكاء الاصطناعي بالموديل الصحيح المعتمد
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    # استخدام الموديل الأحدث والأكثر استقراراً
+    ai_model = genai.GenerativeModel('gemini-1.5-flash')
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -37,24 +47,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- بدي أول خمس آيات من الكهف\n\n"
         "وبعدها بختارلك القارئ وعدد مرات التكرار، وبجهزلك التسجيل الصوتي."
     )
-
-
-# دالة جديدة للاتصال بالذكاء الاصطناعي مباشرة بدون تعقيدات gRPC
-async def generate_ai_response(prompt: str) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    headers = {'Content-Type': 'application/json'}
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}]
-    }
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, headers=headers, json=payload) as response:
-            if response.status == 200:
-                data = await response.json()
-                return data['candidates'][0]['content']['parts'][0]['text']
-            else:
-                logger.error(f"AI Error Status: {response.status}")
-                return ""
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -83,13 +75,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     
     try:
-        # استدعاء الدالة المباشرة
-        ai_text = await generate_ai_response(prompt)
+        # استخدام مكتبة جوجل الرسمية للرد
+        response = ai_model.generate_content(prompt)
+        ai_text = response.text
         
-        if not ai_text:
-            await msg.edit_text("صار في مشكلة بالاتصال مع الذكاء الاصطناعي، جربي مرة ثانية 🙏")
-            return
-            
         clean_text = ai_text.strip().strip('`').replace('json\n', '')
         
         try:
@@ -129,7 +118,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.edit_text(ai_text)
             
     except Exception as e:
-        logger.exception("AI Connection Error")
+        logger.exception("AI Error")
         await msg.edit_text("صار في مشكلة بالاتصال، جربي ابعتي الطلب مرة ثانية 🙏")
 
 
