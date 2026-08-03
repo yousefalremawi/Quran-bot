@@ -32,11 +32,10 @@ REPEAT_OPTIONS = [1, 2, 3, 5, 7, 10]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# تهيئة الذكاء الاصطناعي بالموديل المتوافق تماماً
+# تهيئة الذكاء الاصطناعي بالموديل المدعوم والمستقرار حالياً
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    # استخدام الموديل القياسي المدعوم حالياً
-    ai_model = genai.GenerativeModel('gemini-2.5-flash')
+    ai_model = genai.GenerativeModel('gemini-1.5-pro')
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
