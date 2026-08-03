@@ -2,7 +2,7 @@
 import logging
 import os
 import json
-import google.generativeai as genai
+from google import genai
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -32,10 +32,9 @@ REPEAT_OPTIONS = [1, 2, 3, 5, 7, 10]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# تهيئة الذكاء الاصطناعي بالموديل المدعوم والمستقرار حالياً
+# تهيئة العميل بالطريقة الحديثة والجديدة
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    ai_model = genai.GenerativeModel('gemini-1.5-pro')
+    ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -74,7 +73,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     
     try:
-        response = ai_model.generate_content(prompt)
+        # استخدام الطريقة الحديثة لتوليد المحتوى
+        response = ai_client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt
+        )
         ai_text = response.text
         
         clean_text = ai_text.strip().strip('`').replace('json\n', '')
@@ -214,6 +217,7 @@ def main():
 
     logger.info("Bot starting...")
     app.run_polling(drop_pending_updates=True)
+
 
 if __name__ == "__main__":
     main()
