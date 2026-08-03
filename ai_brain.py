@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-from google import genai
-
-# تهيئة العميل بالطريقة الحديثة
-API_KEY = os.environ.get("GEMINI_API_KEY", "")
-ai_client = genai.Client(api_key=API_KEY) if API_KEY else None
+import urllib.request
+import urllib.error
 
 def analyze_message(user_text):
-    if not ai_client:
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
         return {"type": "chat", "message": "عذراً، مفتاح الذكاء الاصطناعي مفقود."}
 
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    
     prompt = f"""
     أنت مساعد ذكي لبوت قرآن كريم على تليجرام، وتتحدث مع سيدة كبيرة في السن (جدة).
     رسالة المستخدمة: "{user_text}"
@@ -26,17 +26,31 @@ def analyze_message(user_text):
     - لا ترجعي أي نص قبل أو بعد الـ JSON.
     """
     
+    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }]
+    }
+    
+    req = urllib.request.Request(
+        url, 
+        data=json.dumps(payload).encode('utf-8'), 
+        headers=headers, 
+        method='POST'
+    )
+    
     try:
-        response = ai_client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt
-        )
-        ai_text = response.text.strip().strip('`').replace('json\n', '').replace('```', '')
-        
-        try:
-            return json.loads(ai_text)
-        except json.JSONDecodeError:
-            return {"type": "chat", "message": ai_text}
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            ai_text = res_data['candidates'][0]['content']['parts'][0]['text']
             
+            clean_text = ai_text.strip().strip('`').replace('json\n', '').replace('```', '')
+            
+            try:
+                return json.loads(clean_text)
+            except json.JSONDecodeError:
+                return {"type": "chat", "message": ai_text}
+                
     except Exception as e:
         return {"type": "chat", "message": "صار في مشكلة بالاتصال مع الذكاء الاصطناعي، جربي ابعتي الطلب مرة ثانية 🙏"}
