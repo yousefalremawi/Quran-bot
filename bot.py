@@ -41,11 +41,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    chat_id = update.message.chat_id
-
     msg = await update.message.reply_text("⏳ ثواني بس أفهم طلبك...")
 
-    # استدعاء ملف الذكاء الاصطناعي المنفصل
     data = analyze_message(text)
     
     if not data:
@@ -80,7 +77,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
     else:
-        # رد الدردشة العادية أو اللطف من العقل المدبر
         await msg.edit_text(data.get("message", "أهلاً بكِ"))
 
 
@@ -174,7 +170,8 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_repeat_choice, pattern=r"^repeat\|"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    logger.info("Bot starting cleanly with modular design...")
+    logger.info("Bot starting cleanly...")
+    # هذه الخاصية تحذف أي جلسة معلقة وتمنع تضارب الـ Conflict فوراً
     app.run_polling(drop_pending_updates=True)
 
 
