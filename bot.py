@@ -31,7 +31,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # إعداد الذكاء الاصطناعي
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    ai_model = genai.GenerativeModel('gemini-1.5-flash')
+    ai_model = genai.GenerativeModel('gemini-pro')
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
