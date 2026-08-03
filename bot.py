@@ -2,7 +2,8 @@
 import logging
 import os
 import json
-from google import genai
+import urllib.request
+import urllib.error
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -23,7 +24,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# إخفاء رسائل الاتصال المزعجة
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.WARNING)
 
@@ -32,9 +32,32 @@ REPEAT_OPTIONS = [1, 2, 3, 5, 7, 10]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# تهيئة العميل بالطريقة الحديثة
-if GEMINI_API_KEY:
-    ai_client = genai.Client(api_key=GEMINI_API_KEY)
+
+def ask_gemini(prompt_text):
+    """دالة اتصال مباشرة عبر REST API لتجنب أي مشاكل في المكتبات"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt_text}]
+        }]
+    }
+    
+    req = urllib.request.Request(
+        url, 
+        data=json.dumps(payload).encode('utf-8'), 
+        headers=headers, 
+        method='POST'
+    )
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            return res_data['candidates'][0]['content']['parts'][0]['text']
+    except Exception as e:
+        logger.exception(f"Gemini REST API Error: {e}")
+        return None
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -72,55 +95,49 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     - لا ترجعي أي نص قبل أو بعد الـ JSON.
     """
     
+    ai_text = ask_gemini(prompt)
+    
+    if not ai_text:
+        await msg.edit_text("صار في مشكلة بالاتصال مع الذكاء الاصطناعي، جربي ابعتي الطلب مرة ثانية 🙏")
+        return
+        
+    clean_text = ai_text.strip().strip('`').replace('json\n', '').replace('```', '')
+    
     try:
-        # استخدام الموديل القياسي المعتمد حديثاً gemini-2.0-flash
-        response = ai_client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt
-        )
-        ai_text = response.text
+        data = json.loads(clean_text)
         
-        clean_text = ai_text.strip().strip('`').replace('json\n', '')
-        
-        try:
-            data = json.loads(clean_text)
+        if data.get("type") == "quran":
+            surah_name = data.get("surah_name")
+            surah_num = int(data.get("surah_num"))
+            ayah_start = int(data.get("start"))
+            ayah_end = int(data.get("end"))
             
-            if data.get("type") == "quran":
-                surah_name = data.get("surah_name")
-                surah_num = int(data.get("surah_num"))
-                ayah_start = int(data.get("start"))
-                ayah_end = int(data.get("end"))
-                
-                context.user_data["pending"] = {
-                    "surah_name": surah_name,
-                    "surah_num": surah_num,
-                    "ayah_start": ayah_start,
-                    "ayah_end": ayah_end,
-                }
+            context.user_data["pending"] = {
+                "surah_name": surah_name,
+                "surah_num": surah_num,
+                "ayah_start": ayah_start,
+                "ayah_end": ayah_end,
+            }
 
-                keyboard = []
-                row = []
-                for i, reciter_name in enumerate(RECITERS.keys(), start=1):
-                    row.append(InlineKeyboardButton(reciter_name, callback_data=f"reciter|{reciter_name}"))
-                    if i % 2 == 0:
-                        keyboard.append(row)
-                        row = []
-                if row:
+            keyboard = []
+            row = []
+            for i, reciter_name in enumerate(RECITERS.keys(), start=1):
+                row.append(InlineKeyboardButton(reciter_name, callback_data=f"reciter|{reciter_name}"))
+                if i % 2 == 0:
                     keyboard.append(row)
+                    row = []
+            if row:
+                keyboard.append(row)
 
-                await msg.edit_text(
-                    f"تمام ✅ سورة {surah_name} من آية {ayah_start} لـ {ayah_end}\n\nاختاري القارئ:",
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                )
-            else:
-                await msg.edit_text(ai_text)
-                
-        except json.JSONDecodeError:
+            await msg.edit_text(
+                f"تمام ✅ سورة {surah_name} من آية {ayah_start} لـ {ayah_end}\n\nاختاري القارئ:",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
+        else:
             await msg.edit_text(ai_text)
             
-    except Exception as e:
-        logger.exception("AI Error")
-        await msg.edit_text("صار في مشكلة بالاتصال، جربي ابعتي الطلب مرة ثانية 🙏")
+    except json.JSONDecodeError:
+        await msg.edit_text(ai_text)
 
 
 async def handle_reciter_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -204,9 +221,7 @@ async def handle_repeat_choice(update: Update, context: ContextTypes.DEFAULT_TYP
 
 def main():
     if not BOT_TOKEN:
-        raise SystemExit(
-            "لازم تحطي التوكن! عرّفي متغير البيئة BOT_TOKEN قبل ما تشغلي البوت."
-        )
+        raise SystemExit("لازم تحطي التوكن!")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -215,7 +230,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_repeat_choice, pattern=r"^repeat\|"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    logger.info("Bot starting...")
+    logger.info("Bot starting with Direct REST API...")
     app.run_polling(drop_pending_updates=True)
 
 
