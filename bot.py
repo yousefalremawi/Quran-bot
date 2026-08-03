@@ -32,7 +32,7 @@ REPEAT_OPTIONS = [1, 2, 3, 5, 7, 10]
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# تهيئة العميل بالطريقة الحديثة والجديدة
+# تهيئة العميل بالطريقة الحديثة
 if GEMINI_API_KEY:
     ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -73,9 +73,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     
     try:
-        # استخدام الطريقة الحديثة لتوليد المحتوى
+        # استخدام الموديل القياسي المعتمد حديثاً gemini-2.0-flash
         response = ai_client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt
         )
         ai_text = response.text
