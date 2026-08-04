@@ -19,7 +19,7 @@ def analyze_message(user_text):
 
     url = (
         "https://generativelanguage.googleapis.com/v1beta/"
-        f"models/gemini-3.6-flash:generateContent?key={api_key}"
+        f"models/gemini-2.5-flash-lite:generateContent?key={api_key}"
     )
 
     prompt = f"""
