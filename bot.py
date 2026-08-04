@@ -16,6 +16,7 @@ from reciters import RECITERS
 from audio import build_recording
 from ai_brain import analyze_message
 from local_parser import parse_request as parse_locally
+from local_chat import parse_chat as parse_chat_locally
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -44,9 +45,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     msg = await update.message.reply_text("⏳ ثواني...")
 
-    # أول شي منجرب نفهم الرسالة محلياً بدون AI (أسرع وما بياكل كوتا).
-    # إذا ما قدرنا نفهمها بثقة كافية، عندها منستخدم الـ AI كـ fallback.
-    data = parse_locally(text)
+    data = parse_locally(text) or parse_chat_locally(text)
     if not data:
         data = analyze_message(text)
 
@@ -176,7 +175,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     logger.info("Bot starting cleanly...")
-    # هذه الخاصية تحذف أي جلسة معلقة وتمنع تضارب الـ Conflict فوراً
     app.run_polling(drop_pending_updates=True)
 
 
