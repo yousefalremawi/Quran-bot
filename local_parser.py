@@ -21,7 +21,7 @@ from surahs import NAME_TO_SURAH, NUM_TO_COUNT
 ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩"
 _DIGIT_TABLE = str.maketrans(ARABIC_DIGITS, "0123456789")
 
-# كلمات الأعداد العربية الشائعة بالطلبات (اسم وأول/آخر آيات)
+
 def _normalize(text: str) -> str:
     text = text.translate(_DIGIT_TABLE)
     text = text.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
@@ -41,25 +41,23 @@ _RAW_NUMBER_WORDS = {
     "تاسعة": 9, "تسع": 9, "تسعة": 9,
     "عاشرة": 10, "عشر": 10, "عشرة": 10,
 }
-# نطبّع كل مفاتيح القاموس (نفس المعالجة يلي بتصير عالنص) عشان المطابقة تظبط
-# دايماً بغض النظر عن التاء المربوطة أو الألف بأشكالها
 NUMBER_WORDS = {_normalize(k): v for k, v in _RAW_NUMBER_WORDS.items()}
 
 
 def _find_surah(raw_text: str):
-    """يدور على أطول اسم سورة متطابق داخل النص (مطبّع) لتجنب تطابقات جزئية خاطئة"""
+    """يدور على أطول اسم سورة متطابق داخل النص (مطبّع) كـ كلمة مستقلة،
+    مش كجزء من كلمة تانية (مهم جداً للسور اللي اسمها حرف واحد متل ق/ص)"""
     norm_text = _normalize(raw_text)
-    best = None  # (name, surah_num, ayah_count)
+    best = None
     for name, (num, count) in NAME_TO_SURAH.items():
         norm_name = _normalize(name)
-        if norm_name in norm_text:
+        if re.search(r"\b" + re.escape(norm_name) + r"\b", norm_text):
             if best is None or len(norm_name) > len(_normalize(best[0])):
                 best = (name, num, count)
     return best
 
 
 def _extract_number_word(text: str):
-    """يدور على أول كلمة عدد عربية موجودة بالنص"""
     for word, value in sorted(NUMBER_WORDS.items(), key=lambda x: -len(x[0])):
         if re.search(r"\b" + re.escape(word) + r"\b", text):
             return value
@@ -71,11 +69,10 @@ def parse_request(user_text: str):
 
     surah = _find_surah(user_text)
     if not surah:
-        return None  # ما لقينا اسم سورة بثقة -> نسيب الأمر للـ AI
+        return None
 
     surah_name, surah_num, ayah_count = surah
 
-    # 1) نطاق أرقام صريح: "من 90 لـ 95" / "90-95" / "90 الى 95" / "من 90 الى 95"
     range_match = re.search(
         r"(\d+)\s*(?:-|–|—|الى|إلى|لـ|ل|حتى)\s*(\d+)", text
     )
@@ -89,9 +86,8 @@ def parse_request(user_text: str):
                 "start": start,
                 "end": end,
             }
-        return None  # أرقام غير منطقية -> نسيب الـ AI يتعامل معها ويشرح
+        return None
 
-    # 1ب) نطاق بالكلمات: "من واحد لستة" / "من ثلاثة الى عشرة"
     word_alt = "|".join(sorted(NUMBER_WORDS.keys(), key=len, reverse=True))
     word_range_match = re.search(
         r"من\s+(" + word_alt + r")\s+(?:-|–|—|الى|إلى|لـ|ل|حتى)\s*(" + word_alt + r")",
@@ -110,7 +106,6 @@ def parse_request(user_text: str):
             }
         return None
 
-    # 2) "أول N آيات" أو "أول آية" / "أول عشر آيات"
     first_match = re.search(r"(اول|أول)\s+([^\s]+)?\s*(ايه|آيه|ايات|آيات)", text)
     if first_match:
         num_token = first_match.group(2)
@@ -130,7 +125,6 @@ def parse_request(user_text: str):
             "end": end,
         }
 
-    # 3) "آخر N آيات"
     last_match = re.search(r"(اخر|آخر)\s+([^\s]+)?\s*(ايه|آيه|ايات|آيات)", text)
     if last_match:
         num_token = last_match.group(2)
@@ -150,7 +144,6 @@ def parse_request(user_text: str):
             "end": ayah_count,
         }
 
-    # 4) آية واحدة محددة: "الآية 5" / "آية 5" / "الآية الخامسة"
     single_digit = re.search(r"(ايه|آيه)\s*(?:رقم)?\s*(\d+)", text)
     if single_digit:
         n = int(single_digit.group(2))
@@ -176,7 +169,6 @@ def parse_request(user_text: str):
                 "end": n,
             }
 
-    # 5) رقم واحد فقط بعد اسم السورة، مثل "البقرة 90" -> آية وحدة
     trailing_digit = re.search(r"(\d+)\s*$", text)
     if trailing_digit:
         n = int(trailing_digit.group(1))
@@ -190,7 +182,6 @@ def parse_request(user_text: str):
             }
         return None
 
-    # 6) اسم السورة بس بدون أي أرقام -> السورة كاملة
     if not re.search(r"\d", text) and not _extract_number_word(text):
         return {
             "type": "quran",
@@ -200,5 +191,4 @@ def parse_request(user_text: str):
             "end": ayah_count,
         }
 
-    # ما قدرنا نفهم الأرقام بثقة كافية -> نسيب الـ AI يتكفل فيها
     return None
